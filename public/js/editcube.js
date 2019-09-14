@@ -9,6 +9,7 @@ var groupSelect = null;
 var modalSelect = null;
 var view = $('#viewSelect').val();
 var show_tag_colors = $('#hideTagColors').val() !== 'true';
+var urlFilterText = '';
 
 var comparing = false;
 if ($('#in_both').length) {
@@ -52,8 +53,7 @@ $('#compareButton').click(function(e) {
 });
 
 $('#filterButton').click(function(e) {
-  var filterText = $('#filterInput').val();
-  updateFilters(filterText);
+  updateFilters($('#filterInput').val());
 });
 
 $('.updateButton').click(function(e) {
@@ -68,12 +68,15 @@ $('#filterInput').keyup(function(e) {
 });
 
 $('#resetButton').click(function(e) {
+  $('#filterInput').val('');
+  updateFilters('');
+
   filters = [];
+  addUrlToFilter();
   updateCubeList();
 });
 
 $('#customImageDisplayToggle').click(function(e) {
-  console.log("clicked");
   var enabled = $(this).prop('checked'),
     display_image;
   cube.forEach(function(card, index) {
@@ -84,6 +87,8 @@ $('#customImageDisplayToggle').click(function(e) {
 
 $('#viewSelect').change(function(e) {
   view = $('#viewSelect').val();
+  if (view === 'curve' ) $('#secondarySortCol').hide();
+  else $('#secondarySortCol').show();
   updateCubeList();
 });
 
@@ -195,12 +200,6 @@ if (canEdit) {
       }
     }
 
-    //TODO: Remove this
-    var filterobj = null;
-    if (filters.length > 0) {
-      filterobj = getFilterObj();
-    }
-
     groupSelect = JSON.parse(JSON.stringify(groupSelect));
 
     groupSelect.forEach(function(card, index) {
@@ -209,7 +208,6 @@ if (canEdit) {
 
     let data = {
       selected: groupSelect,
-      //filters: filterobj,
       updated: updated,
     };
 
@@ -324,6 +322,29 @@ if (canEdit) {
       src: modalSelect,
       updated: updated,
     };
+    fetch('/cube/api/getcardfromid/' + updated.cardID)
+      .then(response => response.json())
+      .then(function(json) {
+      var found = false;
+      cube.forEach(function(card, index) {
+        if (!found && card.index == data.src.index) {
+          found = true;
+          Object.keys(updated).forEach(function(key) {
+            if (updated[key] === null) {
+              updated[key] = undefined;
+            }
+          });
+          cube[index] = updated;
+          cube[index].index = card.index;
+          cube[index].details = json.card;
+          cube[index].details.display_image = updated.imgUrl !== undefined ? updated.imgUrl : json.card.image_normal;
+          cubeDict[cube[index].index] = cube[index];
+        }
+      });
+
+      updateCubeList();
+      $('#contextModal').modal('hide');
+    });      
     fetch("/cube/api/updatecard/" + $('#cubeID').val(), {
       method: "POST",
       body: JSON.stringify(data),
@@ -331,29 +352,6 @@ if (canEdit) {
         'Content-Type': 'application/json'
       }
     });
-    fetch('/cube/api/getcardfromid/' + updated.cardID)
-      .then(response => response.json())
-      .then(function(json) {
-        var found = false;
-        cube.forEach(function(card, index) {
-          if (!found && card.index == data.src.index) {
-            found = true;
-            Object.keys(updated).forEach(function(key) {
-              if (updated[key] === null) {
-                updated[key] = undefined;
-              }
-            });
-            cube[index] = updated;
-            cube[index].index = card.index;
-            cube[index].details = json.card;
-            cube[index].details.display_image = updated.imgUrl !== undefined ? updated.imgUrl : json.card.image_normal;
-            cubeDict[cube[index].index] = cube[index];
-          }
-        });
-
-        updateCubeList();
-        $('#contextModal').modal('hide');
-      });
   });
   $('#saveSortButton').click(function(e) {
     var temp_sorts = [];
@@ -507,6 +505,131 @@ $('#showTagColorsCheckbox').change(function(e) {
     show_tag_colors = $(this).prop("checked");
     updateCubeList();
   });
+});
+
+$('#applyAdvancedFilterButton').click(function(e) {
+  console.log('click');
+  e.preventDefault();
+
+  var str = '';
+
+  if($('#filterName').val().length > 0)
+  {
+    str += 'n:'+$('#filterName').val();
+  }
+
+  if($('#filterOracle').val().length > 0)
+  {
+    var split = $('#filterOracle').val().split(' ');
+    split.forEach(function(val, index)
+    {
+      str += ' o:'+val;
+    });
+  }
+
+  if($('#filterCMC').val().length > 0)
+  {
+    if($('#filterCMCOp').val() == '!')
+    {
+      str += ' -cmc='+$('#filterCMC').val();
+    }
+    else
+    {
+     str += ' cmc'+$('#filterCMCOp').val()+$('#filterCMC').val();
+    }
+  }
+  if($('#filterPower').val().length > 0)
+  {
+    if($('#filterPowerOp').val() == '!')
+    {
+      str += ' -pow='+$('#filterPower').val();
+    }
+    else
+    {
+     str += ' pow'+$('#filterPowerOp').val()+$('#filterPower').val();
+    }
+  }
+  if($('#filterToughness').val().length > 0)
+  {
+    if($('#filterToughnessOp').val() == '!')
+    {
+      str += ' -tou='+$('#filterToughness').val();
+    }
+    else
+    {
+     str += ' tou'+$('#filterToughnessOp').val()+$('#filterToughness').val();
+    }
+  }
+
+  //Color
+  var colorStr = '';
+  ['W','U','B','R','G','C'].forEach(function(val, index) {
+    if($('#filterColor' + val).prop('checked'))
+    {
+      colorStr += val;
+    }
+  });
+  if(colorStr.length > 0)
+  {
+    str += ' c' + $('#filterColorOp').val() + colorStr;
+  }
+  //Color Identity
+  colorStr = '';
+  ['W','U','B','R','G','C'].forEach(function(val, index) {
+    if($('#filterColorIdentity' + val).prop('checked'))
+    {
+      colorStr += val;
+    }
+  });
+  if(colorStr.length > 0)
+  {
+    str += ' ci' + $('#filterColorIdentityOp').val() + colorStr;
+  }
+  //Mana
+  if($('#filterMana').val().length > 0)
+  {
+    str += ' m:'+$('#filterMana').val();
+  }
+
+  //Type
+  if($('#filterType').val().length > 0)
+  {
+    str += ' t:'+$('#filterType').val();
+  }
+
+  //tags
+  if($('#filterTag').val().length > 0)
+  {
+    str += ' tag:"'+$('#filterTag').val()+'"';
+  }
+
+  //price
+  if($('#filterPrice').val().length > 0)
+  {
+    str += ' p'+$('#filterPriceOp').val()+$('#filterPrice').val();
+  }
+  
+  //price foil 
+  if($('#filterPriceFoil').val().length > 0)
+  {
+    str += ' pf'+$('#filterPriceFoilOp').val()+$('#filterPriceFoil').val();
+  }
+
+  //status
+  if($('#filterStatus').val().length > 0)
+  {
+    str += ' stat:"'+$('#filterStatus').val()+'"';
+  }
+
+  //loyalty
+
+  //manacost type
+
+  //artist
+
+  $('#filterInput').val(str);
+  $('#filterModal').modal('hide');
+  filterButton.click();
 });
 
 if (canEdit && !comparing) {
@@ -981,7 +1104,10 @@ function init_groupcontextModal() {
     e.preventDefault();
     var category1 = e.target.getAttribute("primarysort");
     var category2 = e.target.getAttribute("secondarysort");
-    var matches = sortIntoGroups(sortIntoGroups(filteredCube(), sorts[0])[category1], sorts[1])[category2];
+    var category3 = e.target.getAttribute("tertiarysort");
+    var second_sort = (view === 'curve') ? 'CNC' : sorts[1];
+    var matches = sortIntoGroups(sortIntoGroups(filteredCube(), sorts[0])[category1], second_sort)[category2];
+    if (view === 'curve') matches = sortIntoGroups(matches, 'CMC2')[category3];
     if (matches.length == 1) {
       show_contextModal(matches[0]);
     } else {
@@ -1005,11 +1131,11 @@ function renderGroupContext() {
     }
     let color_class = (show_tag_colors) ? getCardTagColorClass(card) : getCardColorClass(card);
     if (card.details.image_flip) {
-      cardlist += '<li cardID="' + card.cardID + '" style="font-size: 15px;" class="card-list-item list-group-item autocard ' + color_class + '" card="' + card.details.display_image + '" card_flip="' + card.details.image_flip + '" card_tags="' + card.tags + '">';
+      cardlist += '<li data-index="' + index + '" cardID="' + card.cardID + '" style="font-size: 15px;" class="groupModalRm card-list-item list-group-item autocard ' + color_class + '" card="' + card.details.display_image + '" card_flip="' + card.details.image_flip + '" card_tags="' + card.tags + '">';
     } else {
-      cardlist += '<li cardID="' + card.cardID + '" style="font-size: 15px;" class="card-list-item list-group-item autocard ' + color_class + '" card="' + card.details.display_image + '" card_tags="' + card.tags + '">';
+      cardlist += '<li data-index="' + index + '" cardID="' + card.cardID + '" style="font-size: 15px;" class="groupModalRm card-list-item list-group-item autocard ' + color_class + '" card="' + card.details.display_image + '" card_tags="' + card.tags + '">';
     }
-    cardlist += '<a data-index="' + index + '" class="groupModalRm clickx" href="#">×</a><a>  ';
+    cardlist += '×<a>  ';
     cardlist += card.details.name;
     cardlist += '</a></li>';
   });
@@ -1074,6 +1200,8 @@ function show_contextModal(card) {
   $('.price-area').html(priceHtml);
   $('#contextModalTitle').html(card.details.name);
   $('#contextModalImg').attr('src', card.details.display_image);
+  $("#contextModalImg").off("mouseover");
+  $("#contextModalImg").off("mouseout");
   if (card.details.image_flip !== undefined) {
     $('#contextModalImg').mouseover(function() {
       $(this).attr('src', card.details.image_flip);
@@ -1195,46 +1323,22 @@ function filteredCube() {
   return res;
 }
 
-function setFilterQsargs() {
-  var qsargsToSet = {},
-    modifier;
-  filters.forEach(function(filter, index) {
-    if (!qsargsToSet[filter.category]) {
-      qsargsToSet[filter.category] = "";
-    }
-    modifier = "+";
-    if (filter.not) {
-      modifier = "-";
-    }
-    qsargsToSet[filter.category] += modifier + filter.value + ",";
-  });
-  var newUrl = window.location.href.split('?')[0];
-  if (!$.isEmptyObject(qsargsToSet)) {
-    newUrl += "?" + $.param(qsargsToSet);
+function addUrlToFilter(filterText) {
+  let params = new URLSearchParams(document.location.search);
+  params.delete('f');
+  if(filterText) {
+    params.append('f', filterText);
   }
-  window.history.pushState({}, '', newUrl);
+  let url = window.location.pathname + '?' + params.toString();
+  window.history.pushState({}, '', url);
 }
 
 function buildFiltersFromQsargs() {
-  var validCategories = getSorts(),
-    qsargs = new URLSearchParams(window.location.search),
-    qsargValues, value, valueIndex, qsargCategory;
-  for (qsargCategory of qsargs.keys()) {
-    if (!validCategories.includes(qsargCategory)) {
-      continue;
-    }
-    qsargValues = qsargs.get(qsargCategory).split(",");
-    for (valueIndex = 0; valueIndex < qsargValues.length; valueIndex++) {
-      value = qsargValues[valueIndex];
-      if (value.length > 0) {
-        filters.push({
-          category: qsargCategory,
-          value: value.substring(1),
-          not: value[0] === "-"
-        });
-      }
-    }
-  }
+  let params = new URLSearchParams(document.location.search);
+  let f = params.get('f');
+  updateFilters(f);
+  $('#filterInput').val(f);
+  
 }
 
 var updateCubeListeners = [];
@@ -1264,7 +1368,6 @@ function updateCubeList() {
     init_groupcontextModal();
   }
   autocard_hide_card();
-  setFilterQsargs();
 }
 
 function renderListView() {
@@ -1651,12 +1754,12 @@ function renderListView() {
 }
 
 function updateFilters(filterText) {
-  
 
   if (filterText) {
     new_filters = [];
     generateFilters(filterText.toLowerCase(), new_filters)
   } else {
+    $('#filterInput').removeClass('invalid-filter');
     document.getElementById('filterarea').innerHTML = '<p><em>No active filters.</em></p>';
   }
 }
@@ -1678,7 +1781,14 @@ let categoryMap = new Map([
   ['power','power'],
   ['tou', 'toughness'],
   ['toughness', 'toughness'],
-  ['name', 'name']
+  ['name', 'name'],
+  ['tag', 'tag'],
+  ['price','price'],
+  ['pricefoil','pricefoil'],
+  ['p','price'],
+  ['pf','pricefoil'],
+  ['status','status'],
+  ['stat','status']
 ]);
 
 function findEndingQuotePosition(filterText, num) {
@@ -1759,6 +1869,14 @@ function tokenizeInput(filterText, tokens) {
   let quoteOp_re = new RegExp('(?:' + operators + ')"');
   let parens = false;
 
+  //find category
+  let category = '';
+  if (token.operand == 'none') {
+    category = 'name';
+  } else {
+    category = firstTerm[0].split(operators_re)[0];
+  }
+
   //find arg value
   //if there are two quotes, and first char is quote
   if (filterText.indexOf('"') == 0 && filterText.split('"').length > 2) {
@@ -1774,19 +1892,12 @@ function tokenizeInput(filterText, tokens) {
     token.arg = filterText.match(quotes_re)[1];
     parens = true;
   } else if (token.operand != 'none'){
-    token.arg = firstTerm[0].split(')')[0].split(operators_re)[1];
+    token.arg = firstTerm[0].slice(category.length + token.operand.length).split(')')[0];
   } else {
     token.arg = firstTerm[0].split(')')[0];
   }
 
 
-  let category = '';
-  //find category
-  if (token.operand == 'none') {
-    category = 'name';
-  } else {
-    category = firstTerm[0].split(operators_re)[0];
-  }
   filterText = filterText.slice((token.operand == 'none' ? (token.arg.length) : (token.arg.length + token.operand.length + category.length)) + (parens ? 2 : 0));
 
   if (!categoryMap.has(category)) {
@@ -1867,14 +1978,19 @@ function generateFilters(filterText) {
   if (tokenizeInput(filterText, tokens)) {
     if (verifyTokens(tokens)) {
       filters = [parseTokens(tokens)];
+      addUrlToFilter(filterText);
+      
       //TODO: generate a filter string, and return better errors to user
       document.getElementById('filterarea').innerHTML = '<p><em>Filter Applied.</em></p>';
+      $('#filterInput').removeClass('invalid-filter');
       updateCubeList();
     } else {
-      document.getElementById('filterarea').innerHTML = '<p><em>Invalid Filter String.</em></p>';
+      $('#filterInput').addClass('invalid-filter');
+      document.getElementById('filterarea').innerHTML = '<p class="invalid-filter"><em>Invalid Filter String.</em></p>';
     }
   } else {
-    document.getElementById('filterarea').innerHTML = '<p><em>Invalid Filter String.</em></p>';
+    $('#filterInput').addClass('invalid-filter');
+    document.getElementById('filterarea').innerHTML = '<p class="invalid-filter"><em>Invalid Filter String.</em></p>';
   }
 }
 
@@ -2027,11 +2143,6 @@ const parseTokens = (tokens) => {
   }
 }
 
-function buildFilterArea() {
-  //TODO: grab filters from url arg
-  updateFilters();
-}
-
 function addSorts() {
   sort_categories = getSorts();
   var sorthtml = "";
@@ -2057,8 +2168,7 @@ window.onload = function() {
   if (prev_handler) {
     prev_handler();
   }
-  //buildFiltersFromQsargs();
-  buildFilterArea();
+  buildFiltersFromQsargs();
   addSorts();
   updateCubeList();
   activateTags();

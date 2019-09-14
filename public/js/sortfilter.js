@@ -1,3 +1,5 @@
+
+
 var price_buckets = [.25, .5, 1, 2, 3, 4, 5, 7, 10, 15, 20, 25, 30, 40, 50, 75, 100];
 
 function GetColorCategory(type, colors) {
@@ -91,7 +93,11 @@ function filterApply(card, filter) {
     switch (filter.operand) {
       case ':':
       case '=':
-        res = areArraysEqualSets(card.details.colors, filter.arg);
+        if (filter.arg.length == 1 && filter.arg[0] == 'C') {
+          res = !card.details.colors.length;
+        } else {
+          res = areArraysEqualSets(card.details.colors, filter.arg);
+        }
         break;
       case '<':
         res = arrayContainsOtherArray(filter.arg, card.details.colors) && card.details.colors.length < filter.arg.length;
@@ -111,7 +117,11 @@ function filterApply(card, filter) {
     switch (filter.operand) {
       case ':':
       case '=':
-        res = areArraysEqualSets(card.colors, filter.arg);
+        if (filter.arg.length == 1 && filter.arg[0] == 'C') {
+          res = !card.details.colors.length;
+        } else {
+          res = areArraysEqualSets(card.colors, filter.arg);
+        }
         break;
       case '<':
         res = arrayContainsOtherArray(filter.arg, card.colors) && card.details.color_identity.length < filter.arg.length;
@@ -195,6 +205,73 @@ function filterApply(card, filter) {
           break;
         case '>=':
           res = card.details.toughness >= filter.arg;
+          break;
+      }
+    }
+  }
+  if(filter.category == 'tag') {
+    res = card.tags.some(element => {
+      return element.toLowerCase() == filter.arg;
+    });
+  }
+  if(filter.category == 'status') {
+    if(card.status.toLowerCase() == filter.arg)
+    {
+      res = true;
+    }
+  }
+
+  if(filter.category == 'price')
+  {    
+    var price = null;
+    if (card.details.price) {
+      price = card.details.price;
+    } else if (card.details.price_foil) {
+      price = card.details.price_foil;
+    }
+    if (price) {
+      switch(filter.operand)
+      {
+        case ':':
+        case '=':
+          res = filter.arg == price;
+          break;
+        case '<':
+          res = price < filter.arg;
+          break;
+        case '>':
+          res = price > filter.arg;
+          break;
+        case '<=':
+          res = price <= filter.arg;
+          break;
+        case '>=':
+          res = price >= filter.arg;
+          break;
+      }
+    }
+  }
+  if(filter.category == 'pricefoil')
+  {    
+    var price = card.details.price_foil || null
+    if (price) {
+      switch(filter.operand)
+      {
+        case ':':
+        case '=':
+          res = filter.arg == price;
+          break;
+        case '<':
+          res = price < filter.arg;
+          break;
+        case '>':
+          res = price > filter.arg;
+          break;
+        case '<=':
+          res = price <= filter.arg;
+          break;
+        case '>=':
+          res = price >= filter.arg;
           break;
       }
     }
