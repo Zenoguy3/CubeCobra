@@ -4,11 +4,12 @@ block content
   br
   h4 Developer Blog
   if user
-    br
     if admin == 'true'
+      br
       .card(style='padding:10px')
         h5 Create New Blog Post
         form(method='POST', action='/dev/blogpost/')
+          input(type='hidden', name='_csrf', value=csrfToken)
           #form-group
             label Title:
             input.form-control(maxlength='200' name='title', type='text')
@@ -20,7 +21,7 @@ block content
             textarea.form-control(name='html')
           br
           input.btn.btn-success(type='submit',value='Submit')     
-  br 
+      br 
   if pages      
     hr
     nav(aria-label='pagination')

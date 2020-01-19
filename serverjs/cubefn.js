@@ -9,11 +9,14 @@ function get_cube_id(cube) {
 }
 
 function build_id_query(id) {
-  if (id.match(/^[0-9a-fA-F]{24}$/)) return {
-    _id: id
-  };
+  if (!id || id.match(/^[0-9a-fA-F]{24}$/)) {
+    return {
+      _id: id,
+    };
+  }
   return {
-    $or: [{
+    $or: [
+      {
         shortID: id.toLowerCase(),
       },
       {
@@ -24,12 +27,12 @@ function build_id_query(id) {
 }
 
 async function generate_short_id() {
-  let cubes = await Cube.find({}, [ 'shortID', 'urlAlias' ]);
+  let cubes = await Cube.find({}, ['shortID', 'urlAlias']);
 
-  const short_ids = cubes.map(cube => cube.shortID);
-  const url_aliases = cubes.map(cube => cube.urlAlias);
+  const short_ids = cubes.map((cube) => cube.shortID);
+  const url_aliases = cubes.map((cube) => cube.urlAlias);
 
-  const ids = cubes.map(cube => util.from_base_36(cube.shortID));
+  const ids = cubes.map((cube) => util.from_base_36(cube.shortID));
   let max = Math.max(...ids);
 
   if (max < 0) {
@@ -41,9 +44,7 @@ async function generate_short_id() {
     max++;
     new_id = util.to_base_36(max);
 
-    if (!util.has_profanity(new_id) &&
-      !short_ids.includes(new_id) &&
-      !url_aliases.includes(new_id)) break;
+    if (!util.has_profanity(new_id) && !short_ids.includes(new_id) && !url_aliases.includes(new_id)) break;
   }
 
   return new_id;
@@ -58,9 +59,12 @@ function intToLegality(val) {
     case 2:
       return 'Modern';
     case 3:
+      return 'Pioneer';
+    case 4:
       return 'Standard';
+    default:
+      return undefined;
   }
-  return cube;
 }
 
 function legalityToInt(legality) {
@@ -71,20 +75,13 @@ function legalityToInt(legality) {
       return 1;
     case 'Modern':
       return 2;
-    case 'Standard':
+    case 'Pioneer':
       return 3;
+    case 'Standard':
+      return 4;
+    default:
+      return undefined;
   }
-}
-
-function arraysEqual(a, b) {
-  if (a === b) return true;
-  if (a == null || b == null) return false;
-  if (a.length != b.length) return false;
-
-  for (var i = 0; i < a.length; ++i) {
-    if (a[i] !== b[i]) return false;
-  }
-  return true;
 }
 
 function cardsAreEquivalent(card, details) {
@@ -97,13 +94,16 @@ function cardsAreEquivalent(card, details) {
   if (card.cmc != details.cmc) {
     return false;
   }
-  if (card.type_line != details.type_line) {
+  if (card.type_line && details.type_line && card.type_line != details.type_line) {
     return false;
   }
-  if (!arraysEqual(card.tags, details.tags)) {
+  if (!util.arraysEqual(card.tags, details.tags)) {
     return false;
   }
-  if (!arraysEqual(card.colors, details.colors)) {
+  if (!util.arraysEqual(card.colors, details.colors)) {
+    return false;
+  }
+  if (card.finish && details.finish && card.finish != details.finish) {
     return false;
   }
 
@@ -119,11 +119,11 @@ var methods = {
       var found = false;
       var options = carddb.nameToId[name.toLowerCase()];
       options.forEach(function(option, index2) {
-        var card = carddb.carddict[option];
+        var card = carddb.cardFromId(option);
         if (!found && card.set.toLowerCase() == set) {
           found = true;
           res[name] = {
-            details: card
+            details: card,
           };
         }
       });
@@ -131,22 +131,14 @@ var methods = {
     return res;
   },
   cardsAreEquivalent: cardsAreEquivalent,
-  selectionContainsCard: function(card, selection) {
-    selection.forEach(function(select, index) {
-      if (cardsAreEquivalent(select, card.details)) {
-        return true;
-      }
-    });
-    return false;
-  },
   setCubeType: function(cube, carddb) {
     var pauper = true;
     var type = legalityToInt('Standard');
     cube.cards.forEach(function(card, index) {
-      if (pauper && !carddb.carddict[card.cardID].legalities.Pauper) {
+      if (pauper && !carddb.cardFromId(card.cardID).legalities.Pauper) {
         pauper = false;
       }
-      while (type > 0 && !carddb.carddict[card.cardID].legalities[intToLegality(type)]) {
+      while (type > 0 && !carddb.cardFromId(card.cardID).legalities[intToLegality(type)]) {
         type -= 1;
       }
     });
@@ -160,26 +152,58 @@ var methods = {
   },
   sanitize: function(html) {
     return sanitizeHtml(html, {
-      allowedTags: ['div', 'p', 'strike', 'strong', 'b', 'i', 'em', 'u', 'a', 'h5', 'h6', 'ul', 'ol', 'li', 'span'],
-      selfClosing: ['br']
+      allowedTags: [
+        'div',
+        'p',
+        'strike',
+        'strong',
+        'b',
+        'i',
+        'em',
+        'u',
+        'a',
+        'h5',
+        'h6',
+        'ul',
+        'ol',
+        'li',
+        'span',
+        'br',
+      ],
+      selfClosing: ['br'],
     });
   },
-  addAutocard: function(src, carddb) {
+  addAutocard: function(src, carddb, cube) {
     while (src.includes('[[') && src.includes(']]') && src.indexOf('[[') < src.indexOf(']]')) {
       var cardname = src.substring(src.indexOf('[[') + 2, src.indexOf(']]'));
       var mid = cardname;
       if (carddb.nameToId[cardname.toLowerCase()]) {
-        var card = carddb.carddict[carddb.nameToId[cardname.toLowerCase()][0]];
+        var possible = carddb.nameToId[cardname.toLowerCase()];
+        var cardID = null;
+        if (cube && cube.cards) {
+          var allIds = cube.cards.map((card) => card.cardID);
+          var matchingNameIds = allIds.filter((id) => possible.includes(id));
+          cardID = matchingNameIds[0];
+        }
+        if (!cardID) {
+          cardID = possible[0];
+        }
+        var card = carddb.cardFromId(cardID);
         if (card.image_flip) {
-          mid = '<a class="autocard" card="' + card.image_normal + '" card_flip="' + card.image_flip + '">' + card.name + '</a>';
+          mid =
+            '<a class="autocard" card="' +
+            card.image_normal +
+            '" card_flip="' +
+            card.image_flip +
+            '">' +
+            card.name +
+            '</a>';
         } else {
           mid = '<a class="autocard" card="' + card.image_normal + '">' + card.name + '</a>';
         }
       }
       //front + autocard + back
-      src = src.substring(0, src.indexOf('[[')) +
-        mid +
-        src.substring(src.indexOf(']]') + 2);
+      src = src.substring(0, src.indexOf('[[')) + mid + src.substring(src.indexOf(']]') + 2);
     }
     return src;
   },
@@ -191,16 +215,21 @@ var methods = {
       if (!seed) {
         seed = Date.now().toString();
       }
-      const pack = util.shuffle(cube.cards, seed).slice(0, 15).map(card => carddb.carddict[card.cardID]);
+      const pack = util
+        .shuffle(cube.cards, seed)
+        .slice(0, 15)
+        .map((card) => carddb.getCardDetails(card));
       callback(false, {
         seed,
-        pack
+        pack,
       });
     });
   },
   generate_short_id,
   build_id_query,
   get_cube_id,
+  intToLegality,
+  legalityToInt,
 };
 
 module.exports = methods;

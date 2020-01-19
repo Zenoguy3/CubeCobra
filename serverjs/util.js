@@ -1,22 +1,27 @@
 const shuffleSeed = require('shuffle-seed');
 
+const adminname = 'Dekkaru';
+
 function has_profanity(text) {
   if (!text) return false;
 
   const Filter = require('bad-words');
   let filter = new Filter();
-  let removeWords = [
-    'hell',
-    'sadist',
-    'God',
-  ];
+  let removeWords = ['hell', 'sadist', 'God'];
   filter.removeWords(...removeWords);
 
   return filter.isProfane(text.toLowerCase());
 }
 
 function generate_edit_token() {
-  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  return (
+    Math.random()
+      .toString(36)
+      .substring(2, 15) +
+    Math.random()
+      .toString(36)
+      .substring(2, 15)
+  );
 }
 
 function to_base_36(num) {
@@ -28,31 +33,31 @@ function from_base_36(str) {
   return parseInt(str, 36);
 }
 
-function add_word(obj, word) {
+function addWordToTree(obj, word) {
   if (word.length <= 0) {
     return;
   } else if (word.length == 1) {
     if (!obj[word.charAt(0)]) {
       obj[word.charAt(0)] = {
-        '$': {}
+        $: {},
       };
     } else {
       obj[word.charAt(0)]['$'] = {};
     }
   } else {
-    character = word.charAt(0);
-    word = word.substr(1, word.length)
+    let character = word.charAt(0);
+    word = word.substr(1, word.length);
     if (!obj[character]) {
       obj[character] = {};
     }
-    add_word(obj[character], word)
+    addWordToTree(obj[character], word);
   }
 }
 
 function binaryInsert(value, array, startVal, endVal) {
   var length = array.length;
-  var start = typeof(startVal) != 'undefined' ? startVal : 0;
-  var end = typeof(endVal) != 'undefined' ? endVal : length - 1; //!! endVal could be 0 don't use || syntax
+  var start = typeof startVal != 'undefined' ? startVal : 0;
+  var end = typeof endVal != 'undefined' ? endVal : length - 1; //!! endVal could be 0 don't use || syntax
   var m = start + Math.floor((end - start) / 2);
 
   if (length == 0) {
@@ -65,7 +70,8 @@ function binaryInsert(value, array, startVal, endVal) {
     return;
   }
 
-  if (value < array[start]) { //!!
+  if (value < array[start]) {
+    //!!
     array.splice(start, 0, value);
     return;
   }
@@ -85,36 +91,92 @@ function binaryInsert(value, array, startVal, endVal) {
   }
 }
 
-function addCardToCube(cube, card_details, idOverride) {
-  cube.cards.push({
-    tags: ['New'],
-    status: "Not Owned",
+function newCard(card_details, tags) {
+  return {
+    tags: Array.isArray(tags) ? tags : [],
+    status: 'Not Owned',
     colors: card_details.color_identity,
     cmc: card_details.cmc,
-    cardID: idOverride === undefined ? card_details._id : idOverride,
+    cardID: card_details._id,
     type_line: card_details.type,
-    addedTmsp: new Date()
-  });
+    addedTmsp: new Date(),
+    finish: 'Non-foil',
+  };
 }
 
-var methods = {
+function addCardToCube(cube, card_details, tags) {
+  cube.cards.push(newCard(card_details, tags));
+}
+
+function getCardImageURL(card) {
+  return card.imgUrl || card.details.image_normal;
+}
+
+function fromEntries(entries) {
+  const obj = {};
+  for (const [k, v] of entries) {
+    obj[k] = v;
+  }
+  return obj;
+}
+
+async function addNotification(user, from, url, text) {
+  if (user.username == from.username) {
+    return; //we don't need to give notifications to ourselves
+  }
+
+  user.notifications.push({
+    user_from: from._id,
+    user_from_name: from.username,
+    url: url,
+    date: new Date(),
+    text: text,
+  });
+  user.old_notifications.push({
+    user_from: from._id,
+    user_from_name: from.username,
+    url: url,
+    date: new Date(),
+    text: text,
+  });
+  while (user.old_notifications.length > 200) {
+    user.old_notifications = user.old_notifications.slice(1);
+  }
+  await user.save();
+}
+
+function wrapAsyncApi(route) {
+  return (...args) => {
+    try {
+      return route(...args);
+    } catch (err) {
+      console.error(err);
+      res.status(500).send({
+        success: 'false',
+        message: 'Internal server error',
+      });
+    }
+  };
+}
+
+var exports = {
   shuffle: function(array, seed) {
     if (!seed) {
       seed = Date.now();
     }
     return shuffleSeed.shuffle(array, seed);
-
   },
   turnToTree: function(arr) {
     var res = {};
     arr.forEach(function(item, index) {
-      //add_word(cardnames, card);
-      add_word(res, item);
+      addWordToTree(res, item);
     });
     return res;
   },
   binaryInsert,
+  newCard,
   addCardToCube,
+  getCardImageURL,
   arraysEqual: function(a, b) {
     if (a === b) return true;
     if (a == null || b == null) return false;
@@ -153,6 +215,12 @@ var methods = {
   to_base_36,
   from_base_36,
   has_profanity,
-}
+  fromEntries,
+  isAdmin: function(user) {
+    return user && user.username == adminname;
+  },
+  addNotification,
+  wrapAsyncApi,
+};
 
-module.exports = methods;
+module.exports = exports;

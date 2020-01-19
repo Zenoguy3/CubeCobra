@@ -1,20 +1,22 @@
 p
-	a We have another exciting update ready for you today! You may have noticed some downtime tonight, that's because the big feature from this update is short URLs, so we needed to take the server down to update the database.
+	a This update marks the start of site-wide card analytics. We've added card pages that show some useful information regarding individual card inclusion rates, cards drafted frequently with a given card, and a basic way to see a few cubes that run a particular card. 
 p
 	a New Features:
 p
 	ul
-		li Cube IDs are now signfiantly shorter. Almost all cubes will now be 2 digits, but new cubes will be 3 digits
-		li Custom cube url aliases added
-		li Persistent Authentication: users will no longer be logged out during crashes or downtime
-		li Several minor improvements for viewing the site on mobile
-		li Filtered cubes can now be shared, the filter is now stored in the url
-		li Page titles are now named after the appropriate cube
-		li Non-promotional, non-digital cards are now the default version
+		li Card Pages. You can see card pages by clicking on a card from the 'Top Cards' page, or by middle clicking, or ctrl+clicking a card from a cube.
+		li Default versions of cards are now more 'reasonable' (no more anime WAR walkers!)
+		li Added in several missing tokens.
+		li Notifications can be cleared without causing a page refresh.
+		li Visible tags are now imported from CubeTutor. (imported tags must have the color set on CT).
+		li Advanced search is no longer case sensitive.
+		li Cube Owners can now upload decklists to their cube.
+		li Added price filter to top cards.
 p
 	a Bugfixes:
 	ul
-		li Fixed minor UI issues
-		li Fixed new lines in cube posts
-		li Bot draft decks style fixed
-		li Correct metatags for twitter added
+		li Fixed an issue where the draft bots wouldn't take into account the card type properly.
+		li Fixed issue where the card modal wouldn't open up in visual spoiler.
+		li Fixed an issue where the time elapsed would erraneously show over a month ago.
+		li DFCs now display the back side in card preview correctly again.
+		li Fixed an issue where dropdowns needed to be double-clicked.

@@ -1,47 +1,29 @@
 extends cube_layout
 
-block cube_content
+block cube_toolbar
   link(rel='stylesheet' href='/css/draft.css')
-  br
-  if oldformat
-    .container
-      h4 Drafted by #{drafter}
-      br
-      .row
-        each card, i in cards
-          a.autocard(card=card.image_normal)
-            img( src=card.image_normal, width='150', height='210')
-  else
-    .card.card-hover#deckhover
-      .card-header
-        h4 Drafted by #{drafter}
-      .card-body
-        input#deckraw(type='hidden', name='deckraw', value=deck)
-        #deckarea(style='margin: 3px;')
-  br
-  h5 Bot Decks
-  br
-  .row
-    each deck, i in bot_decks
-      .col
-        div.list-group.list-outline
-          span.list-group-heading.list-group-item #{bots[i]}
-          each card, j in bot_decks[i]
-            if card.colorcategory == 'w'
-              a.list-group-item.autocard.white.card-list-item(card=card.image_normal card_flip=card.image_flip)= card.name
-            if card.colorcategory == 'u'
-              a.list-group-item.autocard.blue.card-list-item(card=card.image_normal card_flip=card.image_flip)= card.name
-            if card.colorcategory == 'b'
-              a.list-group-item.autocard.black.card-list-item(card=card.image_normal card_flip=card.image_flip)= card.name
-            if card.colorcategory == 'r'
-              a.list-group-item.autocard.red.card-list-item(card=card.image_normal card_flip=card.image_flip)= card.name
-            if card.colorcategory == 'g'
-              a.list-group-item.autocard.green.card-list-item(card=card.image_normal card_flip=card.image_flip)= card.name
-            if card.colorcategory == 'c'
-              a.list-group-item.autocard.colorless.card-list-item(card=card.image_normal card_flip=card.image_flip)= card.name
-            if card.colorcategory == 'm'
-              a.list-group-item.autocard.multi.card-list-item(card=card.image_normal card_flip=card.image_flip)= card.name
-            if card.colorcategory == 'l'
-              a.list-group-item.autocard.lands.card-list-item(card=card.image_normal card_flip=card.image_flip)= card.name
 
-  script(src='/js/deck.js')
+block cube_content
+  include ../dynamic_flash
+  #react-root
+
+block scripts
+  script(src='/js/autocard.js')
+  script(type='text/javascript').
+    var reactProps = {
+      oldFormat: !{oldformat},
+      drafter: !{JSON.stringify(drafter)},
+      cards: !{cards ? JSON.stringify(cards) : '[]'},
+      deck: !{deck || []},
+      description: !{JSON.stringify(description)},
+      name: !{JSON.stringify(name)},
+      sideboard: !{sideboard || []},
+      botDecks: !{JSON.stringify(bot_decks)},
+      bots: !{JSON.stringify(bots)},
+      canEdit: !{JSON.stringify(user && user._id == owner)},
+      comments: !{JSON.stringify(comments)},
+      deckid: !{JSON.stringify(deckid)},
+      userid: !{JSON.stringify(user ? user._id : null)},
+    };
+  include ../react
+  script(src='/js/cube_deck.bundle.js')

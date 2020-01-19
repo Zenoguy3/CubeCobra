@@ -1,93 +1,186 @@
 const fs = require('fs');
+const util = require('./util.js');
+const cardutil = require('../dist/util/Card.js');
 
-//read files
 var data = {
   cardtree: {},
   imagedict: {},
   cardimages: {},
   cardnames: [],
   full_names: [],
-  carddict: {},
   nameToId: {},
-  normalizedName: card => card.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim(),
-  allIds: card => data.nameToId[data.normalizedName(card)]
+  _carddict: {},
+};
+var fileToAttribute = {
+  'carddict.json': '_carddict',
+  'cardtree.json': 'cardtree',
+  'names.json': 'cardnames',
+  'nameToId.json': 'nameToId',
+  'full_names.json': 'full_names',
+  'imagedict.json': 'imagedict',
+  'cardimages.json': 'cardimages',
+};
+
+function getPlaceholderCard(_id) {
+  //placeholder card if we don't find the one due to a scryfall ID update bug
+  return {
+    _id: _id,
+    set: '',
+    collector_number: '',
+    promo: false,
+    digital: false,
+    full_name: 'Invalid Card',
+    name: 'Invalid Card',
+    name_lower: 'invalid card',
+    artist: '',
+    scryfall_uri: '',
+    rarity: '',
+    legalities: {},
+    oracle_text: '',
+    image_normal: 'https://img.scryfall.com/errors/missing.jpg',
+    cmc: 0,
+    type: '',
+    colors: [],
+    color_identity: [],
+    parsed_cost: [],
+    colorcategory: 'c',
+    error: true,
+  };
 }
-fs.readFile('private/carddict.json', 'utf8', function(err, contents) {
-  data.carddict = JSON.parse(contents);
-  console.log("carddict loaded");
-});
-fs.readFile('private/cardtree.json', 'utf8', function(err, contents) {
-  data.cardtree = JSON.parse(contents);
-  console.log("cardtree loaded");
-});
-fs.readFile('private/names.json', 'utf8', function(err, contents) {
-  data.cardnames = JSON.parse(contents);
-  console.log("names loaded");
-});
-fs.readFile('private/nameToId.json', 'utf8', function(err, contents) {
-  data.nameToId = JSON.parse(contents);
-  console.log("nameToId loaded");
-});
-fs.readFile('private/full_names.json', 'utf8', function(err, contents) {
-  data.full_names = JSON.parse(contents);
-  console.log("full_names loaded");
-});
-fs.readFile('private/imagedict.json', 'utf8', function(err, contents) {
-  data.imagedict = JSON.parse(contents);
-  console.log("imagedict loaded");
-});
-fs.watchFile('private/imagedict.json', (curr, prev) => {
-  console.log('File Changed: imagedict');
-  fs.readFile('private/imagedict.json', 'utf8', function(err, contents) {
-    data.imagedict = JSON.parse(contents);
-    console.log("imagedict reloaded");
+
+function cardFromId(id, fields) {
+  let details;
+  if (data._carddict[id]) {
+    details = data._carddict[id];
+  } else {
+    console.log('Could not find card from id: ' + id);
+    details = getPlaceholderCard(id);
+  }
+
+  if (typeof fields === 'undefined') {
+    return details;
+  } else if (!Array.isArray(fields)) {
+    fields = fields.split(' ');
+  }
+
+  return util.fromEntries(fields.map((field) => [field, details[field]]));
+}
+
+function getCardDetails(card) {
+  if (data._carddict[card.cardID]) {
+    var details = data._carddict[card.cardID];
+    card.details = details;
+    return details;
+  } else {
+    console.log('Could not find card details: ' + card.cardID);
+    return getPlaceholderCard(card.cardID);
+  }
+}
+
+function loadJSONFile(filename, attribute) {
+  return new Promise((resolve, reject) => {
+    fs.readFile(filename, 'utf8', function(err, contents) {
+      if (!err) {
+        try {
+          data[attribute] = JSON.parse(contents);
+        } catch (e) {
+          console.log('Error parsing json from ', filename, ' : ', e);
+          err = e;
+        }
+        console.log(attribute + ' loaded');
+      }
+      if (err) {
+        reject(err);
+      } else {
+        resolve(contents);
+      }
+    });
   });
-});
-fs.readFile('private/cardimages.json', 'utf8', function(err, contents) {
-  data.cardimages = JSON.parse(contents);
-  console.log("cardimages loaded");
-});
-fs.watchFile('private/cardimages.json', (curr, prev) => {
-  console.log('File Changed: cardimages');
-  fs.readFile('private/cardimages.json', 'utf8', function(err, contents) {
-    data.cardimages = JSON.parse(contents);
-    console.log("cardimages reloaded");
+}
+
+function registerFileWatcher(filename, attribute) {
+  fs.watchFile(filename, (curr, prev) => {
+    console.log('File Changed: ' + filename);
+    loadJSONFile(filename, attribute);
   });
-});
-fs.watchFile('private/cardtree.json', (curr, prev) => {
-  console.log('File Changed: cardtree');
-  fs.readFile('private/cardtree.json', 'utf8', function(err, contents) {
-    data.cardtree = JSON.parse(contents);
-    console.log("cardtree reloaded");
-  });
-});
-fs.watchFile('private/names.json', (curr, prev) => {
-  console.log('File Changed: names');
-  fs.readFile('private/names.json', 'utf8', function(err, contents) {
-    data.cardnames = JSON.parse(contents);
-    console.log("names reloaded");
-  });
-});
-fs.watchFile('private/carddict.json', (curr, prev) => {
-  console.log('File Changed: carddict');
-  fs.readFile('private/carddict.json', 'utf8', function(err, contents) {
-    data.carddict = JSON.parse(contents);
-    console.log("carddict reloaded");
-  });
-});
-fs.watchFile('private/nameToId.json', (curr, prev) => {
-  console.log('File Changed: nameToId');
-  fs.readFile('private/nameToId.json', 'utf8', function(err, contents) {
-    data.nameToId = JSON.parse(contents);
-    console.log("nameToId reloaded");
-  });
-});
-fs.watchFile('private/full_names.json', (curr, prev) => {
-  console.log('File Changed: full_names');
-  fs.readFile('private/full_names.json', 'utf8', function(err, contents) {
-    data.full_names = JSON.parse(contents);
-    console.log("full_names reloaded");
-  });
-});
+}
+
+function initializeCardDb(dataRoot, skipWatchers) {
+  if (dataRoot === undefined) {
+    dataRoot = 'private';
+  }
+  var promises = [],
+    filepath,
+    attribute;
+  for (var filename in fileToAttribute) {
+    filepath = dataRoot + '/' + filename;
+    attribute = fileToAttribute[filename];
+    promises.push(loadJSONFile(filepath, attribute));
+    if (skipWatchers !== true) {
+      registerFileWatcher(filepath, attribute);
+    }
+  }
+  return Promise.all(promises);
+}
+
+function unloadCardDb() {
+  var attribute;
+  for (var filename in fileToAttribute) {
+    attribute = fileToAttribute[filename];
+    delete data[attribute];
+  }
+}
+
+function notPromoOrDigitalId(id) {
+  return notPromoOrDigitalCard(cardFromId(id));
+}
+
+function notPromoOrDigitalCard(card) {
+  return !card.promo && !card.digital && card.border_color != 'gold' && card.language == 'en' && card.tcgplayer_id;
+}
+
+function getMostReasonable(cardName) {
+  const ids = getIdsFromName(cardName);
+  if (typeof ids === 'undefined' || ids.length == 0) {
+    return getMostReasonableById(cardName);
+  }
+
+  for (const id of ids) {
+    if (notPromoOrDigitalId(id)) {
+      return cardFromId(id);
+    }
+  }
+  return cardFromId(ids[0]);
+}
+
+function getMostReasonableById(id) {
+  let card = cardFromId(id);
+  if (card.error) {
+    console.log('Error finding most reasonable for id:', id);
+    return getPlaceholderCard(0);
+  }
+  return getMostReasonable(card.name);
+}
+
+function getIdsFromName(name) {
+  return data.nameToId[cardutil.normalizeName(name)];
+}
+
+data.cardFromId = cardFromId;
+data.getCardDetails = getCardDetails;
+data.getIdsFromName = getIdsFromName;
+data.allIds = (card) => getIdsFromName(card.name);
+data.allCards = () => Object.values(data._carddict);
+data.initializeCardDb = initializeCardDb;
+data.loadJSONFile = loadJSONFile;
+data.getPlaceholderCard = getPlaceholderCard;
+data.unloadCardDb = unloadCardDb;
+data.getMostReasonable = getMostReasonable;
+data.getMostReasonableById = getMostReasonableById;
+data.notPromoOrDigitalId = notPromoOrDigitalId;
+data.notPromoOrDigitalCard = notPromoOrDigitalCard;
+
+// deprecated: use card.name_lower or cardutil.normalizeName
+data.normalizedName = (card) => cardutil.normalizeName(card.name);
 
 module.exports = data;

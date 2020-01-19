@@ -1,0 +1,12 @@
+extends layout
+
+block content
+  include flash
+
+  #react-root !{reactHTML}
+
+block scripts
+  include react
+  script(type='text/javascript').
+    var reactProps = !{JSON.stringify(reactProps)};
+  script(src='/js/dashboard.bundle.js')
